@@ -1,0 +1,90 @@
+#Data Clean/ preprocessing
+import pandas as pd
+import random
+from sklearn.preprocessing import MinMaxScaler, LabelEncoder
+from datetime import datetime, timedelta
+
+# Function to generate random loan data
+def generate_loan_data(num_records=100):
+    loan_data = []
+    for i in range(num_records):
+        loan_id = f"{i+1:03}"
+        loan_amount = random.randint(100000, 1000000)
+        interest_rate = round(random.uniform(7.0, 15.0), 2)
+        repayment_frequency = random.choice(['Monthly', 'Quarterly'])
+        loan_term = random.choice([12, 24, 36, 48])
+        borrower_age = random.randint(20, 60)
+        borrower_income = random.randint(30000, 150000)
+        employment_status = random.choice(['Employed', 'Self-employed', 'Unemployed'])
+
+        on_time_payments = random.randint(0, loan_term)
+        missed_payments = loan_term - on_time_payments
+
+        default_status = random.choice(['Yes', 'No'])
+        if default_status == 'Yes':
+            default_date = datetime.now() - timedelta(days=random.randint(30, 365))
+        else:
+            default_date = None
+
+        market_rate = round(random.uniform(5.0, 10.0), 2)
+        inflation_rate = round(random.uniform(2.0, 5.0), 2)
+        loan_issuance_date = datetime.now() - timedelta(days=random.randint(100, 1000))
+        repayment_start_date = loan_issuance_date + timedelta(days=random.randint(30, 60))
+
+        collateral_type = random.choice(['Property', 'Car', 'None'])
+        collateral_value = random.randint(100000, 1000000) if collateral_type != 'None' else 0
+
+        loan_data.append([loan_id, loan_amount, interest_rate, repayment_frequency, loan_term, borrower_age, borrower_income,
+                         employment_status, on_time_payments, missed_payments, default_status, market_rate, inflation_rate,
+                         loan_issuance_date.strftime('%d/%m/%Y'), repayment_start_date.strftime('%d/%m/%Y'), loan_amount * 0.5, collateral_type, collateral_value])
+
+    # Create a DataFrame
+    columns = ['Loan ID', 'Loan Amount', 'Interest Rate', 'Repayment Frequency', 'Loan Term (Months)', 'Borrower Age', 'Borrower Income',
+               'Employment Status', 'Previous Repayment History (On-Time)', 'Previous Repayment History (Missed Payments)', 'Loan Default Status',
+               'Market Rate', 'Inflation Rate', 'Loan Issuance Date', 'Repayment Start Date', 'Current Loan Balance', 'Collateral Type', 'Collateral Value']
+
+    df = pd.DataFrame(loan_data, columns=columns)
+
+    return df
+
+# Data Cleaning and Preprocessing
+def preprocess_data(df):
+    # Convert date columns to datetime type
+    df['Loan Issuance Date'] = pd.to_datetime(df['Loan Issuance Date'], format='%d/%m/%Y')
+    df['Repayment Start Date'] = pd.to_datetime(df['Repayment Start Date'], format='%d/%m/%Y')
+
+    # Handle missing values (fill with mean for numerical columns, mode for categorical columns)
+    df.fillna(df.mean(numeric_only=True), inplace=True)  # Fill missing numerical data with mean
+    for col in df.select_dtypes(include=['object']).columns:  # Categorical columns
+        df[col].fillna(df[col].mode()[0], inplace=True)  # Fill missing categorical data with mode
+
+    # Convert categorical columns to numeric using LabelEncoder
+    label_encoder = LabelEncoder()
+    df['Loan Default Status'] = label_encoder.fit_transform(df['Loan Default Status'])
+    df['Employment Status'] = label_encoder.fit_transform(df['Employment Status'])
+    df['Repayment Frequency'] = label_encoder.fit_transform(df['Repayment Frequency'])
+    df['Collateral Type'] = label_encoder.fit_transform(df['Collateral Type'])
+
+    # Feature Engineering - Convert loan term to years
+    df['Loan Term (Years)'] = df['Loan Term (Months)'] / 12
+
+    # Calculate Income to Age Ratio
+    df['Income to Age Ratio'] = df['Borrower Income'] / df['Borrower Age']
+
+    # Feature Scaling - Normalize numerical features
+    numerical_features = ['Loan Amount', 'Interest Rate', 'Loan Term (Months)', 'Borrower Age',
+                          'Borrower Income', 'Previous Repayment History (On-Time)',
+                          'Previous Repayment History (Missed Payments)', 'Market Rate', 'Inflation Rate',
+                          'Current Loan Balance', 'Collateral Value', 'Loan Term (Years)', 'Income to Age Ratio']
+
+    scaler = MinMaxScaler()
+    df[numerical_features] = scaler.fit_transform(df[numerical_features])
+
+    return df
+
+# Generate loan data and preprocess it
+df = generate_loan_data(100)
+df_cleaned = preprocess_data(df)
+
+# Display the cleaned data
+print(df_cleaned.head())
