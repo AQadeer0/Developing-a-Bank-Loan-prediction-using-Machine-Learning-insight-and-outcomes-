@@ -1,0 +1,172 @@
+#model selection
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.impute import SimpleImputer
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+from sklearn.model_selection import GridSearchCV
+
+# Function to generate sample loan data (you can replace this with your actual data)
+def generate_loan_data(n):
+    np.random.seed(42)
+    data = {
+        'Loan Amount': np.random.randint(1000, 50000, size=n),
+        'Employment Status': np.random.choice(['Employed', 'Self-Employed', 'Unemployed'], size=n),
+        'Loan Default Status': np.random.choice([0, 1], size=n),  # 0 = No default, 1 = Default
+        'Income': np.random.randint(3000, 12000, size=n),
+        'Credit Score': np.random.randint(300, 850, size=n)
+    }
+    return pd.DataFrame(data)
+
+# Function to preprocess the data
+def preprocess_data(df):
+    # Handling missing values
+    imputer = SimpleImputer(strategy='mean')
+    df['Loan Amount'] = imputer.fit_transform(df[['Loan Amount']])
+
+    # Encoding categorical variables
+    label_encoder = LabelEncoder()
+    df['Employment Status'] = label_encoder.fit_transform(df['Employment Status'])
+
+    # Scaling numerical features
+    scaler = StandardScaler()
+    numerical_features = df.select_dtypes(include=[np.number]).columns
+    df[numerical_features] = scaler.fit_transform(df[numerical_features])
+
+    return df
+
+# Function to perform EDA
+def perform_eda(df):
+    # 1. Data Structure Understanding
+    print("Data Types:\n", df.dtypes)
+    print("\nMissing Values:\n", df.isnull().sum())
+    print("\nSummary Statistics:\n", df.describe())
+
+    # 2. Visualize the distribution of numerical features
+    numerical_features = df.select_dtypes(include=[np.number]).columns
+
+    # Histograms
+    df[numerical_features].hist(figsize=(12, 10), bins=20)
+    plt.suptitle('Histograms of Numerical Features', fontsize=16)
+    plt.tight_layout()
+    plt.show()
+
+    # Boxplots to check for outliers
+    for feature in numerical_features:
+        plt.figure(figsize=(6, 4))
+        sns.boxplot(x=df[feature])
+        plt.title(f'Boxplot of {feature}')
+        plt.show()
+
+    # 3. Correlation Heatmap
+    correlation_matrix = df[numerical_features].corr()
+    plt.figure(figsize=(12, 8))
+    sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', fmt=".2f", linewidths=0.5)
+    plt.title('Correlation Heatmap of Numerical Features')
+    plt.show()
+
+    # 4. Categorical Features Analysis
+    categorical_features = df.select_dtypes(include=['object']).columns
+
+    for feature in categorical_features:
+        plt.figure(figsize=(6, 4))
+        sns.countplot(x=df[feature])
+        plt.title(f'Distribution of {feature}')
+        plt.show()
+
+    # 5. Analyze Relationships between Features
+    # Scatter plot matrix
+    sns.pairplot(df, hue='Loan Default Status', diag_kind='kde', height=2.5)
+    plt.suptitle('Pairplot of Numerical Features with Loan Default Status', fontsize=16)
+    plt.tight_layout()
+    plt.show()
+
+    # Groupby and Aggregation (e.g., Mean loan amount by employment status)
+    employment_status_group = df.groupby('Employment Status')['Loan Amount'].mean()
+    print("\nAverage Loan Amount by Employment Status:\n", employment_status_group)
+
+    # Boxplot for Loan Amount by Loan Default Status
+    plt.figure(figsize=(6, 4))
+    sns.boxplot(x='Loan Default Status', y='Loan Amount', data=df)
+    plt.title('Boxplot of Loan Amount by Loan Default Status')
+    plt.show()
+
+    # 6. Outliers Detection and Analysis
+    # Outliers in Loan Amount
+    plt.figure(figsize=(6, 4))
+    sns.boxplot(x=df['Loan Amount'])
+    plt.title('Outliers in Loan Amount')
+    plt.show()
+
+    # Checking Loan Amount outliers using IQR method
+    Q1 = df['Loan Amount'].quantile(0.25)
+    Q3 = df['Loan Amount'].quantile(0.75)
+    IQR = Q3 - Q1
+    outliers = df[(df['Loan Amount'] < (Q1 - 1.5 * IQR)) | (df['Loan Amount'] > (Q3 + 1.5 * IQR))]
+    print(f"\nNumber of outliers in 'Loan Amount': {len(outliers)}")
+
+# Function to train and evaluate models
+def evaluate_models(X_train, X_test, y_train, y_test):
+    models = {
+        'Logistic Regression': LogisticRegression(),
+        'Random Forest': RandomForestClassifier(),
+        'Support Vector Machine': SVC()
+    }
+
+    for model_name, model in models.items():
+        # Train the model
+        model.fit(X_train, y_train)
+
+        # Make predictions
+        y_pred = model.predict(X_test)
+
+        # Evaluate model performance
+        print(f"Model: {model_name}")
+        print(f"Accuracy: {accuracy_score(y_test, y_pred)}")
+        print("Confusion Matrix:")
+        print(confusion_matrix(y_test, y_pred))
+        print("Classification Report:")
+        print(classification_report(y_test, y_pred))
+        print("="*50)
+
+# Main execution flow
+# Generate loan data (You can replace this with actual data generation or import)
+df = generate_loan_data(100)  # Replace with actual data generation logic
+df_cleaned = preprocess_data(df)
+
+# Ensure that Loan Default Status is binary (0 or 1)
+df_cleaned['Loan Default Status'] = df_cleaned['Loan Default Status'].astype(int)
+
+# Perform EDA
+perform_eda(df_cleaned)
+
+# Splitting data into features and target
+X = df_cleaned.drop('Loan Default Status', axis=1)  # Features
+y = df_cleaned['Loan Default Status']  # Target
+
+# Split data into train and test sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+
+# Evaluate the models
+evaluate_models(X_train, X_test, y_train, y_test)
+
+# Example for hyperparameter tuning using GridSearchCV (for Random Forest)
+param_grid = {
+    'n_estimators': [50, 100, 200],
+    'max_depth': [None, 10, 20, 30],
+}
+
+# Random Forest with GridSearchCV
+grid_search = GridSearchCV(RandomForestClassifier(), param_grid, cv=5)
+grid_search.fit(X_train, y_train)
+
+# Best parameters and model performance
+print("Best parameters:", grid_search.best_params_)
+y_pred_best = grid_search.best_estimator_.predict(X_test)
+print("Accuracy with best model:", accuracy_score(y_test, y_pred_best))
